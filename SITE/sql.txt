@@ -1,0 +1,227 @@
+CREATE DATABASE anti_furto;
+USE anti_furto;
+#drop database anti_furto;
+
+/* ---------------------------------------------------------------------------------- */
+
+#PREVILEGIOS DOS USERs
+
+#MASTER
+GRANT all
+on anti_furto
+to webmaster@localhost;
+
+#CLIENTE
+GRANT UPDATE, SELECT, INSERT
+on cliente
+to cliente@localhost;
+
+GRANT UPDATE, SELECT, INSERT
+on produto
+to cliente@localhost;
+
+GRANT UPDATE, SELECT, INSERT
+on historico_update
+to cliente@localhost;
+
+GRANT UPDATE, SELECT, INSERT
+on entrega
+to cliente@localhost;
+
+GRANT SELECT
+on fornecedor
+to cliente@localhost;
+
+GRANT SELECT, INSERT, UPDATE
+on pagamento
+to cliente@localhost;
+
+GRANT SELECT
+on categoria
+to cliente@localhost;
+
+GRANT SELECT, INSERT, UPDATE
+on pedido
+to cliente@localhost;
+
+#VISITANTE
+GRANT SELECT 
+on produto
+to visitante@localhost;
+
+GRANT SELECT 
+on fornecedor
+to visitante@localhost;
+
+GRANT SELECT 
+on categoria
+to visitante@localhost;
+
+GRANT INSERT, select
+on cliente
+to visitante@localhost;
+
+GRANT select
+on admin
+to visitante@localhost;
+
+
+/* ---------------------------------------------------------------------------------- */
+
+#CREATE TABLEs
+
+CREATE TABLE categoria(
+	descricao VARCHAR(60) NOT NULL,
+	grau_importancia CHAR(1),
+	nome VARCHAR(20) NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE cliente(
+	nome_cliente VARCHAR(40) NOT NULL,
+	foto VARCHAR(40),
+	username VARCHAR(40) PRIMARY KEY NOT NULL,
+	senha VARCHAR(40),
+	telefone INT NOT NULL,
+	email_cliente VARCHAR(40) NOT NULL,
+	estado CHAR(20) NOT NULL,
+	cidade VARCHAR(20) NOT NULL,
+	CPF INT NOT NULL,
+	end_cliente VARCHAR (80) NOT NULL,
+	sexo char(2) NOT NULL
+);
+
+CREATE TABLE pedido(
+	cod_pedido INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+	data_pedido DATE NOT NULL,
+	cod_produto INT,
+	username VARCHAR(40) NOT NULL,
+	FOREIGN KEY (username) REFERENCES cliente (username)
+);
+
+CREATE TABLE pagamento(
+	data_pagamento DATE NOT NULL,
+	data_vencimento DATE NOT NULL,
+	valor DECIMAL(10,2),
+	cod_pedido INT PRIMARY KEY,
+	FOREIGN KEY (cod_pedido) REFERENCES pedido (cod_pedido)
+);
+
+CREATE TABLE fornecedor(
+	cod_fornecedor INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+	nome VARCHAR(40) NOT NULL,
+	telefone INT NOT NULL,
+	end_fornecedor VARCHAR(80) NOT NULL,
+	email VARCHAR(40) NOT NULL,
+	cidade VARCHAR(20) NOT NULL,
+	estado CHAR(20) NOT NULL,
+	pais VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE produto(
+	descricao VARCHAR(60) NOT NULL,
+	cod_produto INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+	nome_produto VARCHAR(20) NOT NULL,
+	preco DECIMAL(10,2) NOT NULL,
+	foto VARCHAR(40) NOT NULL,
+	estoque INT NOT NULL,
+	cod_fornecedor INT, 
+	FOREIGN KEY (cod_fornecedor) REFERENCES fornecedor (cod_fornecedor),
+	categoria VARCHAR(20),
+	FOREIGN KEY (categoria) REFERENCES categoria (nome)
+);
+
+CREATE TABLE entrega(
+	data_entrega DATE NOT NULL,
+	cod_pedido INT NOT NULL,
+	constraint fk_cod_pedido FOREIGN KEY (cod_pedido) REFERENCES pedido(cod_pedido),
+	username VARCHAR(40) NOT NULL,
+	FOREIGN KEY (username) REFERENCES cliente (username),
+	endereco VARCHAR(80) NOT NULL,
+	PRIMARY KEY (cod_pedido, username)
+);
+
+CREATE TABLE admin(
+	nome_admin VARCHAR(40) NOT NULL,
+	foto VARCHAR(40),
+	username VARCHAR(40) PRIMARY KEY NOT NULL,
+	senha VARCHAR(40),
+	telefone INT NOT NULL,
+	email_admin VARCHAR(40) NOT NULL,
+	estado CHAR(20) NOT NULL,
+	cidade VARCHAR(20) NOT NULL,
+	CPF INT NOT NULL,
+	end_admin VARCHAR (80) NOT NULL,
+	sexo char(2) NOT NULL
+);
+
+CREATE TABLE historico_update(
+	cod_update INT PRIMARY KEY AUTO_INCREMENT,
+	cod_produto INT,
+	acao VARCHAR(20),
+	user VARCHAR(20),
+	valor_old DECIMAL(10,2),
+	valor_new DECIMAL(10,2)
+);
+
+/* ---------------------------------------------------------------------------------- */
+
+#CREATE DE VIEWs
+
+CREATE VIEW tabela_cliente as select foto, username, nome_cliente, sexo, email_cliente from cliente;
+
+CREATE VIEW tabela_pedido as select pe.cod_pedido, pe.data_pedido, c.username, c.nome_cliente, pr.cod_produto, pr.nome_produto, f.nome from pedido as pe
+INNER JOIN (cliente as c inner join (produto as pr inner join fornecedor as f))
+ON pe.username = (c.username AND pe.cod_produto = pr.cod_produto);
+
+select * from tabela_cliente;
+select * from tabela_pedido;
+
+/* ---------------------------------------------------------------------------------- */
+
+#TRIGGER DE CONTROLE DE ALTERAÇÃO NA TABELA PRODUTO
+
+DELIMITER $
+CREATE TRIGGER update_historico_produtos AFTER UPDATE on produto FOR EACH ROW 
+BEGIN
+	INSERT INTO historico_update (cod_produto, acao, user, valor_old, valor_new)
+							VALUES (OLD.cod_produto, "update", user(), OLD.preco, NEW.preco);
+END $
+DELIMITER ;
+
+DELIMITER $
+CREATE TRIGGER update_historico_produtos_delete AFTER DELETE on produto FOR EACH ROW 
+BEGIN
+	INSERT INTO historico_update (cod_produto, acao, user)
+							VALUES (OLD.cod_produto, "delete", user());
+END $
+DELIMITER ;
+
+SELECT * from historico_update;
+
+/* ---------------------------------------------------------------------------------- */
+
+#INSERT DAS CATEGORIAS
+
+INSERT INTO categoria (nome, descricao, grau_importancia) VALUES ("Bicicleta", "Produtos anti-furto para bicicletas" , "1");
+INSERT INTO categoria (nome, descricao, grau_importancia)	VALUES ("Casa", "Produtos anti-furto para casas", "2");
+INSERT INTO categoria (nome, descricao, grau_importancia)	VALUES ("Carro", "Produtos anti-furto para carros", "2");
+INSERT INTO categoria (nome, descricao, grau_importancia)	VALUES ("Moto", "Produtos anti-furto para motos", "2");
+
+#INSERT ADMIN
+
+INSERT INTO admin (nome_admin, username, senha, email_admin) VALUES ("Administrador","admin","admin", "adm_antifurto@gmail.com");
+
+/* ---------------------------------------------------------------------------------- */
+
+#CREATE USERs
+
+CREATE USER webmaster@localhost
+IDENTIFIED BY "webmaster";
+
+CREATE USER cliente@localhost
+IDENTIFIED BY "cliente";
+
+CREATE USER visitante@localhost
+IDENTIFIED BY "visitante";
+
+/* ---------------------------------------------------------------------------------- */
